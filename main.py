@@ -8,7 +8,7 @@ contador=1
 usuarios_estados = {}
 usuarios_datos = {}
 
-œ@app.post("/whatsapp")
+@app.post("/whatsapp")
 async def whatsapp_webhook(From: str = Form (...), Body: str = Form(...)):
     global contador
     
@@ -36,7 +36,7 @@ async def whatsapp_webhook(From: str = Form (...), Body: str = Form(...)):
         else:
             return PlainTextResponse("❌ No entendí. Escribe 'compra', 'venta' u 'otro'.")
         ######## PASO 2: CONCEPTO PERZONALIZADO #####
-        elif estado == 'concepto_otro':
+    elif estado == 'concepto_otro':
         usuarios_datos[From]["concepto"] = mensaje.capitalize()
         usuarios_estados[From]= 'estatus_pago'
         return PlainTextResponse(
@@ -77,7 +77,7 @@ async def whatsapp_webhook(From: str = Form (...), Body: str = Form(...)):
                 "concepto": usuarios_datos[From]["concepto"],
                 "estatus_pago": usuarios_datos[From]["estatus_pago"],
                 "importe_total": usuarios_datos[From]["importe_total"],
-                "por_cobrar":0,0,
+                "por_cobrar":0.0,
                 "cliente": From
             }
             tickets[ticket_id] = ticket
