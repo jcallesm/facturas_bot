@@ -82,18 +82,18 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
 
         if estatus == "PAGADO":
             usuarios_estados[From] = "importe_total"
-            return PlainTextResponse("💰 Ingresa el **importe total** (solo números).")
+            return PlainTextResponse("💰 Ingresa el **importe total** (sólo números).")
         elif estatus == "NO PAGADO":
             usuarios_estados[From] = "importe_por_cobrar"
-            return PlainTextResponse("💰 Ingresa el **importe por cobrar** (solo números).")
+            return PlainTextResponse("💰 Ingresa el **importe por cobrar** (sólo números).")
         elif estatus == "PAGO PARCIAL":
             usuarios_estados[From] = "importe_parcial"
-            return PlainTextResponse("💰 Ingresa el **importe parcial pagado** (solo números).")
+            return PlainTextResponse("💰 Ingresa el **importe parcial pagado** (sólo números).")
 
     # ---------------------- Paso 3A: Importe total ----------------------
     elif estado == "importe_total":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingrese solo números o decimales válidos (ejemplo: 120 o 89.50).")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         usuarios_datos[From]["importe_total"] = float(mensaje)
         usuarios_datos[From]["por_cobrar"] = 0.0
         usuarios_estados[From] = "comentarios"
@@ -104,7 +104,7 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
     # ---------------------- Paso 3B: Importe por cobrar ----------------------
     elif estado == "importe_por_cobrar":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingrese solo números o decimales válidos.")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         usuarios_datos[From]["importe_total"] = 0.0
         usuarios_datos[From]["por_cobrar"] = float(mensaje)
 
@@ -119,14 +119,14 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
     # ---------------------- Paso 3C: Pago parcial ----------------------
     elif estado == "importe_parcial":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingrese solo números o decimales válidos.")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         usuarios_datos[From]["importe_parcial"] = float(mensaje)
         usuarios_estados[From] = "importe_total_parcial"
-        return PlainTextResponse("💵 Ingrese el **importe total del ticket** (solo números).")
+        return PlainTextResponse("💵 Ingrese el **importe total del ticket** (sólo números).")
 
     elif estado == "importe_total_parcial":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingrese solo números o decimales válidos.")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         total = float(mensaje)
         parcial = usuarios_datos[From]["importe_parcial"]
         usuarios_datos[From]["importe_total"] = total
