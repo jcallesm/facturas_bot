@@ -33,89 +33,131 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
         usuarios_estados[From] = "concepto"
         usuarios_datos[From] = {}
         return PlainTextResponse(
-            "👋 Hola, soy el bot de tickets.\nVamos a crear un nuevo ticket.\nPor favor, dime el **concepto** del ticket:\n👉 COMPRA, VENTA u OTRO."
+            "👋 Hola, soy Trancos, tu asistente para gestionar tickets." \
+            "\nVamos a crear un nuevo ticket." \
+            "\nPor favor, escriba el **concepto** del ticket: " \
+            "\n1️⃣ COMPRA"
+            "\n2️⃣ VENTA"
+            "\n3️⃣  OTRO"
         )
 
     # ---------------------- Paso 1: Concepto ----------------------
     if estado == "concepto":
-        if mensaje in ["compra", "venta"]:
+        if mensaje in ["compra", "venta", "1", "2"]:
             usuarios_datos[From]["concepto"] = mensaje.capitalize()
             usuarios_estados[From] = "estatus_pago"
             print(f"✅ Concepto registrado: {mensaje}")
             return PlainTextResponse(
-                "✅ Entendido. Ahora dime el **estatus de pago**:\n1️⃣ PAGADO\n2️⃣ NO PAGADO\n3️⃣ PAGO PARCIAL"
+                "✅ Entendido. Ahora escriba el **estatus de pago**:" \
+                "\n1️⃣ PAGADO" \
+                "\n2️⃣ NO PAGADO" \
+                "\n3️⃣ PAGO PARCIAL"
             )
         elif mensaje == "otro":
             usuarios_estados[From] = "concepto_otro"
-            return PlainTextResponse("✏️ Escribe el concepto personalizado del ticket:")
+            return PlainTextResponse("✏️ Escriba el concepto personalizado del ticket:")
         else:
             print("⚠️ No entendí el concepto.")
-            return PlainTextResponse("❌ No entendí. Escribe 'compra', 'venta' u 'otro'.")
+            return PlainTextResponse("❌ No entendí. Escriba 'COMPRA', 'VENTA' u 'OTRO'.")
 
     # ---------------------- Paso 1B: Concepto personalizado ----------------------
     elif estado == "concepto_otro":
         usuarios_datos[From]["concepto"] = mensaje.capitalize()
         usuarios_estados[From] = "estatus_pago"
         return PlainTextResponse(
-            "Perfecto. Ahora dime el **estatus de pago**:\n1️⃣ PAGADO\n2️⃣ NO PAGADO\n3️⃣ PAGO PARCIAL"
+            "Perfecto. Ahora escriba el **estatus de pago**:" \
+            "\n1️⃣ PAGADO"
+            "\n2️⃣ NO PAGADO"
+            "\n3️⃣ PAGO PARCIAL"
         )
 
     # ---------------------- Paso 2: Estatus de pago ----------------------
     elif estado == "estatus_pago":
         opciones = {"1": "PAGADO", "2": "NO PAGADO", "3": "PAGO PARCIAL"}
         if mensaje not in opciones and mensaje not in ["pagado", "no pagado", "pago parcial"]:
-            return PlainTextResponse("❌ Opción inválida. Escribe 1, 2 o 3.")
+            return PlainTextResponse("❌ Opción inválida. Escriba PAGADO, NO PAGADO, PAGO PARCIAL, 1, 2 ò 3.")
         
         estatus = opciones.get(mensaje, mensaje.upper())
         usuarios_datos[From]["estatus_pago"] = estatus
 
         if estatus == "PAGADO":
             usuarios_estados[From] = "importe_total"
-            return PlainTextResponse("💰 Ingresa el **importe total** (solo números).")
+            return PlainTextResponse("💰 Ingresa el **importe total** (sólo números).")
         elif estatus == "NO PAGADO":
             usuarios_estados[From] = "importe_por_cobrar"
-            return PlainTextResponse("💰 Ingresa el **importe por cobrar** (solo números).")
+            return PlainTextResponse("💰 Ingresa el **importe por cobrar** (sólo números).")
         elif estatus == "PAGO PARCIAL":
             usuarios_estados[From] = "importe_parcial"
-            return PlainTextResponse("💰 Ingresa el **importe parcial pagado** (solo números).")
+            return PlainTextResponse("💰 Ingresa el **importe parcial pagado** (sólo números).")
 
     # ---------------------- Paso 3A: Importe total ----------------------
     elif estado == "importe_total":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingresa solo números o decimales válidos (ejemplo: 120 o 89.50).")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         usuarios_datos[From]["importe_total"] = float(mensaje)
         usuarios_datos[From]["por_cobrar"] = 0.0
         usuarios_estados[From] = "comentarios"
-        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (cliente, lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario")
+        return PlainTextResponse("📝 ¿Quiere agregar algún comentario (lugar, orden, etc)?" \
+        "\n1️⃣ NO"
+        "\n2️⃣ SÍ, escribir comentario.")
 
     # ---------------------- Paso 3B: Importe por cobrar ----------------------
     elif estado == "importe_por_cobrar":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingresa solo números o decimales válidos.")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         usuarios_datos[From]["importe_total"] = 0.0
         usuarios_datos[From]["por_cobrar"] = float(mensaje)
+
+        usuarios_estados[From]='informacion_cliente'
+        return PlainTextResponse("📞¿Quiere agregar información del cliente (nombre, contacto, etc)? " \
+        "\n1️⃣ NO"
+        "\n2️⃣ SÍ, escribir información.") 
+        
         usuarios_estados[From] = "comentarios"
-        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (cliente, lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario")
+        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario.")
 
     # ---------------------- Paso 3C: Pago parcial ----------------------
     elif estado == "importe_parcial":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingresa solo números o decimales válidos.")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         usuarios_datos[From]["importe_parcial"] = float(mensaje)
         usuarios_estados[From] = "importe_total_parcial"
-        return PlainTextResponse("💵 Ingresa el **importe total del ticket** (solo números).")
+        return PlainTextResponse("💵 Ingrese el **importe total del ticket** (sólo números).")
 
     elif estado == "importe_total_parcial":
         if not mensaje.replace(".", "", 1).isdigit():
-            return PlainTextResponse("❌ Ingresa solo números o decimales válidos.")
+            return PlainTextResponse("❌ Ingrese sólo números o decimales válidos (ejemplo: 120 ó 89.50).")
         total = float(mensaje)
         parcial = usuarios_datos[From]["importe_parcial"]
         usuarios_datos[From]["importe_total"] = total
-        usuarios_datos[From]["por_cobrar"] = total - parcial
-        usuarios_estados[From] = "comentarios"
-        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (cliente, lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario")
+        usuarios_datos[From]["por_cobrar"] = round(total - parcial,2)
 
-    # ---------------------- Paso 4: Comentarios ----------------------
+        usuarios_estados[From]='informacion_cliente'
+        return PlainTextResponse("📞¿Quiere agregar información del cliente (nombre, contacto, etc)? " \
+        "\n1️⃣ NO" \
+        "\n2️⃣ SÍ, escribir información.") 
+
+        usuarios_estados[From] = "comentarios"
+        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (lugar, orden, etc)?" \
+        "\n1️⃣ NO"
+        "\n2️⃣ SÍ, escribir comentario.")
+    
+    # ---------------------- Paso 4: Información del cliente ----------------------
+    elif estado == "informacion_cliente":
+        if mensaje in ["1", "no"]:
+            usuarios_datos[From]["informacion_cliente"] = "Sin información del cliente"
+            usuarios_estados[From] = "comentarios"
+            return PlainTextResponse("📝 ¿Quieres agregar algún comentario (lugar, orden, etc)?" \
+            "\n1️⃣ NO" \
+            "\n2️⃣ SÍ, escribir comentario.")
+        elif mensaje in ["2", "si", "sí", "s"]:
+            usuarios_estados[From] = "informacion_cliente_texto"
+            return PlainTextResponse("✏️ Escribe la información del cliente que deseas agregar.")
+        else:
+            usuarios_datos[From]["informacion_cliente"] = mensaje
+            usuarios_estados[From] = "comentarios"
+
+    # ---------------------- Paso 5: Comentarios ----------------------
     elif estado == "comentarios":
         if mensaje in ["1", "no"]:
             usuarios_datos[From]["comentarios"] = "Sin comentarios"
@@ -133,7 +175,7 @@ async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
 
     else:
         usuarios_estados[From] = "concepto"
-        return PlainTextResponse("Vamos a crear un nuevo ticket. Escribe 'compra', 'venta' u 'otro'.")
+        return PlainTextResponse("Vamos a crear un nuevo ticket. Escribe 'COMPRA', 'VENTA' u 'OTRO'.")
 
 
 def crear_ticket(From):
@@ -151,7 +193,7 @@ def crear_ticket(From):
         "importe_total": usuarios_datos[From].get("importe_total", 0.0),
         "por_cobrar": usuarios_datos[From].get("por_cobrar", 0.0),
         "comentarios": usuarios_datos[From].get("comentarios", "Sin comentarios"),
-        "cliente": From
+        "cliente": usuarios_datos[From].get("informacion_cliente", "Sin información del cliente")
     }
 
     tickets[ticket_id] = ticket
@@ -165,8 +207,9 @@ def crear_ticket(From):
         f"🧾 *ID:* {ticket['id']}\n"
         f"📅 *Fecha:* {ticket['fecha_creacion']}\n"
         f"📘 *Concepto:* {ticket['concepto']}\n"
-        f"💰 *Importe total:* ${ticket['importe_total']}\n"
-        f"💸 *Por cobrar:* ${ticket['por_cobrar']}\n"
+        f"💰 *Importe total:* ${ticket['importe_total']:,.2f}\n"
+        f"💸 *Por cobrar:* ${ticket['por_cobrar']:,.2f}\n"
         f"📊 *Estatus:* {ticket['estatus_pago']}\n"
+        f"📞 *Cliente:* {ticket['cliente']}\n"
         f"🗒️ *Comentarios:* {ticket['comentarios']}"
     )
