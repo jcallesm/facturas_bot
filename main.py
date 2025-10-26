@@ -1,151 +1,172 @@
-######CODIGO MAIN.PY######
 from fastapi import FastAPI, Form
 from fastapi.responses import PlainTextResponse
+from datetime import datetime
+import unicodedata
 
 app = FastAPI()
 
-tickets ={}
-contador=1
+tickets = {}
+contador = 1
 usuarios_estados = {}
 usuarios_datos = {}
 
-@app.post("/whatsapp")
-async def whatsapp_webhook(From: str = Form (...), Body: str = Form(...)):
-    global contador
-    
-    mensaje =Body.strip().lower()
+def normalizar(texto: str) -> str:
+    texto = texto.strip().lower()
+    texto = "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )  # quita tildes
+    return texto
 
-    #####MENSAJE INICIAL#####
-    if From not in usuarios_estados:
-        usuarios_estados[From]= 'concepto'
+@app.post("/whatsapp")
+async def whatsapp_webhook(From: str = Form(...), Body: str = Form(...)):
+    global contador
+    mensaje_original = Body.strip()
+    mensaje = normalizar(mensaje_original)
+    estado = usuarios_estados.get(From)
+
+    print(f"📩 Mensaje recibido de {From}: '{mensaje_original}' → Normalizado: '{mensaje}'")
+    print(f"📊 Estado actual: {estado}")
+
+    # ---------------------- Paso 0: Inicio ----------------------
+    if estado is None:
+        usuarios_estados[From] = "concepto"
         usuarios_datos[From] = {}
         return PlainTextResponse(
-                        "👋 Hola, soy el bot de tickets.\nVamos a crear un nuevo ticket.\nPor favor, dime el **concepto** del ticket: COMPRA, VENTA u OTRO)."
-                        )
-    
-    ####### PASO 1: TICKET SEGÙN CONCEPTO #####
-    if estado == 'concepto':
+            "👋 Hola, soy el bot de tickets.\nVamos a crear un nuevo ticket.\nPor favor, dime el **concepto** del ticket:\n👉 COMPRA, VENTA u OTRO."
+        )
+
+    # ---------------------- Paso 1: Concepto ----------------------
+    if estado == "concepto":
         if mensaje in ["compra", "venta"]:
-            usuarios_datos[From][concepto] = mensaje.capitalize()
-            usuarios_estados[From]= 'estatus_pago'
+            usuarios_datos[From]["concepto"] = mensaje.capitalize()
+            usuarios_estados[From] = "estatus_pago"
+            print(f"✅ Concepto registrado: {mensaje}")
             return PlainTextResponse(
                 "✅ Entendido. Ahora dime el **estatus de pago**:\n1️⃣ PAGADO\n2️⃣ NO PAGADO\n3️⃣ PAGO PARCIAL"
-            ) 
+            )
         elif mensaje == "otro":
-            usuarios_estado[From] = "concepto_otro"
-            return PlainTextResponse("Por favor, escribe el concepto personalizado.")
+            usuarios_estados[From] = "concepto_otro"
+            return PlainTextResponse("✏️ Escribe el concepto personalizado del ticket:")
         else:
+            print("⚠️ No entendí el concepto.")
             return PlainTextResponse("❌ No entendí. Escribe 'compra', 'venta' u 'otro'.")
-        ######## PASO 2: CONCEPTO PERZONALIZADO #####
-    elif estado == 'concepto_otro':
+
+    # ---------------------- Paso 1B: Concepto personalizado ----------------------
+    elif estado == "concepto_otro":
         usuarios_datos[From]["concepto"] = mensaje.capitalize()
-        usuarios_estados[From]= 'estatus_pago'
+        usuarios_estados[From] = "estatus_pago"
         return PlainTextResponse(
-                        "Perfecto. Ahora dime el **estatus de pago**:\n1️⃣ PAGADO\n2️⃣ NO PAGADO\n3️⃣ PAGO PARCIAL"
+            "Perfecto. Ahora dime el **estatus de pago**:\n1️⃣ PAGADO\n2️⃣ NO PAGADO\n3️⃣ PAGO PARCIAL"
         )
-        # Paso 3: estatus de pago
-    elif estado == 'estatus_pago':
-        opciones_estatus = {"1": "PAGADO", "2": "NO PAGADO", "3": "PAGO PARCIAL"}
-        if mensaje in opciones_estatus:
-            if mensaje in opciones_estatus:
-                usuarios_datos[From]["estatus_pago"] = opciones_estatus[mensaje]
-                if mensaje in ["PAGADO","1"]:
-                    usuarios_estados[From]= 'importe_total'
-                    return PlainTextResponse("💰 Ingresa el **importe total** (solo números).") 
-                elif mensaje in ["NO PAGADO","2"]:
-                    usuarios_estados[From]= "importe_por_cobrar"
-                    return PlainTextResponse("💰 Ingresa el **importe por cobrar** (solo números).") 
-                elif mensaje in ["PAGO PARCIAL","3"]:
-                    usuarios_estados[From]= 'importe_parcial_pagado'
-                    return PlainTextResponse("💰 Ingresa el **importe parcial pagado** (solo números).")
-            else:
-                return PlainTextResponse("❌ Opción inválida. Escribe alguna de las siguientes opciones: PAGADO, NO PAGADO, PAGO PARCIAL, 1, 2 ó 3.")
-            ########PASO 4A: IMPORTE TOTAL PAGADO ########     
-        elif estado == 'importe_total':
-            if not mensaje.replace(".","",1).rpartitionisdigit():
-                return PlainTextResponse("❌ Ingresa solo números o decimales válidos (ejemplo: 120 o 89.50).")
-            
-            importe=float(mensaje)
-            usuarios_datos[From]["importe_total"] = importe
 
-            ###CREAR TICKET###
-            fecha_creacion=current_time().string()
-            hoy= today().string()
-            ticket_id = f"hoy-{contador:03d}"
-            contador+=1
-            ticket = {
-                "fecha_creacion": fecha_creacion,
-                "concepto": usuarios_datos[From]["concepto"],
-                "estatus_pago": usuarios_datos[From]["estatus_pago"],
-                "importe_total": usuarios_datos[From]["importe_total"],
-                "por_cobrar":0.0,
-                "cliente": From
-            }
-            tickets[ticket_id] = ticket
-            usuarios_estados.pop(From)
-            usuarios_datos.pop(From)
-
-        return PlainTextResponse(
-            f"✅ Ticket creado con éxito.\n\n🧾 Concepto: {ticket['concepto']}\n💰 Importe total: ${ticket['importe_total']}\n📊 Estatus: {ticket['estatus_pago']}\n🆔 Número: {ticket_id}"
-        )
-        ########PASO 4B: IMPORTE POR COBRAR ########
-    elif estado == 'importe_por_cobrar':
-        if not mensaje.replace(".","",1).rpartitionisdigit():
-            return PlainTextResponse("❌ Ingresa solo números o decimales válidos (ejemplo: 120 o 89.50).")
-            
-            importe=float(mensaje)
-            usuarios_datos[From]["importe_por_cobrar"] = importe
-
-            ###CREAR TICKET###
-            fecha_creacion=current_time().string()
-            hoy= today().string()
-            ticket_id = f"hoy-{contador:03d}"
-            contador+=1
-            ticket = {
-                "fecha_creacion": fecha_creacion,
-                "concepto": usuarios_datos[From]["concepto"],
-                "estatus_pago": usuarios_datos[From]["estatus_pago"],
-                "importe_total":0.0,
-                "por_cobrar":usuarios_datos[From]["importe_por_cobrar"],
-                "cliente": From
-            }
-            tickets[ticket_id] = ticket
-            usuarios_estados.pop(From)
-            usuarios_datos.pop(From)
+    # ---------------------- Paso 2: Estatus de pago ----------------------
+    elif estado == "estatus_pago":
+        opciones = {"1": "PAGADO", "2": "NO PAGADO", "3": "PAGO PARCIAL"}
+        if mensaje not in opciones and mensaje not in ["pagado", "no pagado", "pago parcial"]:
+            return PlainTextResponse("❌ Opción inválida. Escribe 1, 2 o 3.")
         
-        return PlainTextResponse(
-            f"✅ Ticket creado con éxito.\n\n🧾 Concepto: {ticket['concepto']}\n💰 Importe total: ${ticket['importe_total']}\n💸 Por cobrar: ${ticket['por_cobrar']}\n📊 Estatus: {ticket['estatus_pago']}\n🆔 Número: {ticket_id}"
-        )
-    
-        ########PASO 4C: IMPORTE PARCIAL PAGADO ########
-    elif estado == 'importe_parcial_pagado':
-        if not mensaje.replace(".","",1).rpartitionisdigit():
-            return PlainTextResponse("❌ Ingresa solo números o decimales válidos (ejemplo: 120 o 89.50).")
-            
-            importe=float(mensaje)
-            usuarios_datos[From]["importe_parcial_pagado"] = importe
+        estatus = opciones.get(mensaje, mensaje.upper())
+        usuarios_datos[From]["estatus_pago"] = estatus
 
-            ###CREAR TICKET###
-            fecha_creacion=current_time().string()
-            hoy= today().string()
-            ticket_id = f"hoy-{contador:03d}"
-            contador+=1
-            ticket = {
-                "fecha_creacion": fecha_creacion,
-                "concepto": usuarios_datos[From]["concepto"],
-                "estatus_pago": usuarios_datos[From]["estatus_pago"],
-                "importe_total":0.0,
-                "por_cobrar":0.0,
-                "parcial_pagado":usuarios_datos[From]["importe_parcial_pagado"],
-                "cliente": From
-            }
-            tickets[ticket_id] = ticket
-            usuarios_estados.pop(From)
-            usuarios_datos.pop(From)
-        
-        return PlainTextResponse(
-            f"✅ Ticket creado con éxito.\n\n🧾 Concepto: {ticket['concepto']}\n💰 Importe total: ${ticket['importe_total']}\n💸 Parcial pagado: ${ticket['parcial_pagado']}\n📊 Estatus: {ticket['estatus_pago']}\n🆔 Número: {ticket_id}"
-        )
+        if estatus == "PAGADO":
+            usuarios_estados[From] = "importe_total"
+            return PlainTextResponse("💰 Ingresa el **importe total** (solo números).")
+        elif estatus == "NO PAGADO":
+            usuarios_estados[From] = "importe_por_cobrar"
+            return PlainTextResponse("💰 Ingresa el **importe por cobrar** (solo números).")
+        elif estatus == "PAGO PARCIAL":
+            usuarios_estados[From] = "importe_parcial"
+            return PlainTextResponse("💰 Ingresa el **importe parcial pagado** (solo números).")
+
+    # ---------------------- Paso 3A: Importe total ----------------------
+    elif estado == "importe_total":
+        if not mensaje.replace(".", "", 1).isdigit():
+            return PlainTextResponse("❌ Ingresa solo números o decimales válidos (ejemplo: 120 o 89.50).")
+        usuarios_datos[From]["importe_total"] = float(mensaje)
+        usuarios_datos[From]["por_cobrar"] = 0.0
+        usuarios_estados[From] = "comentarios"
+        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (cliente, lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario")
+
+    # ---------------------- Paso 3B: Importe por cobrar ----------------------
+    elif estado == "importe_por_cobrar":
+        if not mensaje.replace(".", "", 1).isdigit():
+            return PlainTextResponse("❌ Ingresa solo números o decimales válidos.")
+        usuarios_datos[From]["importe_total"] = 0.0
+        usuarios_datos[From]["por_cobrar"] = float(mensaje)
+        usuarios_estados[From] = "comentarios"
+        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (cliente, lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario")
+
+    # ---------------------- Paso 3C: Pago parcial ----------------------
+    elif estado == "importe_parcial":
+        if not mensaje.replace(".", "", 1).isdigit():
+            return PlainTextResponse("❌ Ingresa solo números o decimales válidos.")
+        usuarios_datos[From]["importe_parcial"] = float(mensaje)
+        usuarios_estados[From] = "importe_total_parcial"
+        return PlainTextResponse("💵 Ingresa el **importe total del ticket** (solo números).")
+
+    elif estado == "importe_total_parcial":
+        if not mensaje.replace(".", "", 1).isdigit():
+            return PlainTextResponse("❌ Ingresa solo números o decimales válidos.")
+        total = float(mensaje)
+        parcial = usuarios_datos[From]["importe_parcial"]
+        usuarios_datos[From]["importe_total"] = total
+        usuarios_datos[From]["por_cobrar"] = total - parcial
+        usuarios_estados[From] = "comentarios"
+        return PlainTextResponse("📝 ¿Quieres agregar algún comentario (cliente, lugar, orden, etc)?\n1️⃣ No\n2️⃣ Sí, escribir comentario")
+
+    # ---------------------- Paso 4: Comentarios ----------------------
+    elif estado == "comentarios":
+        if mensaje in ["1", "no"]:
+            usuarios_datos[From]["comentarios"] = "Sin comentarios"
+            return crear_ticket(From)
+        elif mensaje in ["2", "si", "sí", "s"]:
+            usuarios_estados[From] = "comentario_texto"
+            return PlainTextResponse("✏️ Escribe el comentario que deseas agregar.")
+        else:
+            usuarios_datos[From]["comentarios"] = mensaje
+            return crear_ticket(From)
+
+    elif estado == "comentario_texto":
+        usuarios_datos[From]["comentarios"] = mensaje
+        return crear_ticket(From)
+
     else:
-        usuarios_estados[From]= 'concepto'
+        usuarios_estados[From] = "concepto"
         return PlainTextResponse("Vamos a crear un nuevo ticket. Escribe 'compra', 'venta' u 'otro'.")
+
+
+def crear_ticket(From):
+    global contador
+    fecha_creacion = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fecha_id = datetime.now().strftime("%Y%m%d")
+    concepto = usuarios_datos[From]["concepto"]
+    ticket_id = f"{concepto[0].upper()}-{fecha_id}-{contador:03d}"
+
+    ticket = {
+        "id": ticket_id,
+        "fecha_creacion": fecha_creacion,
+        "concepto": concepto,
+        "estatus_pago": usuarios_datos[From]["estatus_pago"],
+        "importe_total": usuarios_datos[From].get("importe_total", 0.0),
+        "por_cobrar": usuarios_datos[From].get("por_cobrar", 0.0),
+        "comentarios": usuarios_datos[From].get("comentarios", "Sin comentarios"),
+        "cliente": From
+    }
+
+    tickets[ticket_id] = ticket
+    contador += 1
+    usuarios_estados.pop(From, None)
+    usuarios_datos.pop(From, None)
+
+    print(f"✅ Ticket creado: {ticket_id}")
+    return PlainTextResponse(
+        f"✅ Ticket creado con éxito.\n\n"
+        f"🧾 *ID:* {ticket['id']}\n"
+        f"📅 *Fecha:* {ticket['fecha_creacion']}\n"
+        f"📘 *Concepto:* {ticket['concepto']}\n"
+        f"💰 *Importe total:* ${ticket['importe_total']}\n"
+        f"💸 *Por cobrar:* ${ticket['por_cobrar']}\n"
+        f"📊 *Estatus:* {ticket['estatus_pago']}\n"
+        f"🗒️ *Comentarios:* {ticket['comentarios']}"
+    )
